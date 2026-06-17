@@ -1,0 +1,14 @@
+*.o
+*.ko
+*.mod
+*.mod.c
+*.cmd
+*.order
+*.symvers
+*.tmp
+.tmp_versions/
+modules.order
+Module.symvers
+
+.DS_Store
+Thumbs.db

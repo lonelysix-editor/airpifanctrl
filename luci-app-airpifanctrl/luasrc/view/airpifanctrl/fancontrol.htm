@@ -1,0 +1,348 @@
+<%+header%>
+<style>
+    #maincontent {
+        max-width: 100% !important;
+        padding: 0 !important;
+    }
+
+    .airpi-fan {
+        min-height: 80vh;
+        padding: 24px 12px;
+        background: var(--background, #f7f9fb);
+        color: var(--text-primary, #525f7f);
+        text-align: center;
+    }
+
+    .airpi-fan-inner {
+        width: min(100%, 960px);
+        margin: 0 auto;
+    }
+
+    .airpi-fan h2 {
+        margin: 0 0 18px;
+        border: 0;
+        background: none;
+        color: var(--primary, #5e72e4);
+        font-size: 24px;
+        font-weight: 700;
+        letter-spacing: 0;
+    }
+
+    .fan-actions {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 8px;
+        margin-bottom: 24px;
+    }
+
+    .fan-btn {
+        min-width: 76px;
+        padding: 10px 14px;
+        border: 1px solid var(--primary, #5e72e4);
+        border-radius: 4px;
+        background: var(--card-background, #ffffff);
+        color: var(--primary, #5e72e4);
+        font-weight: 600;
+        cursor: pointer;
+        transition: background-color .2s ease, color .2s ease, box-shadow .2s ease;
+    }
+
+    .fan-btn:hover,
+    .fan-btn.active {
+        background: var(--primary, #5e72e4);
+        color: #fff;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, .08);
+    }
+
+    .slider-box {
+        display: none;
+        width: min(90%, 520px);
+        margin: 0 auto 18px;
+    }
+
+    .slider-box.active {
+        display: block;
+    }
+
+    #speedSlider {
+        width: 100%;
+        cursor: pointer;
+    }
+
+    #fan {
+        display: block;
+        margin: 12px auto 18px;
+        background: transparent;
+    }
+
+    .fan-info {
+        margin: 8px 0;
+        font-size: 16px;
+        font-weight: 700;
+    }
+
+    .progress-wrapper {
+        width: min(80%, 520px);
+        height: 12px;
+        margin: 18px auto;
+        overflow: hidden;
+        border-radius: 6px;
+        background: rgba(0, 0, 0, .12);
+    }
+
+    #energyFill {
+        width: 0;
+        height: 100%;
+        background: var(--primary, #5e72e4);
+        transition: width .5s ease, background-color .5s ease;
+    }
+
+    .switch-row {
+        display: none;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        margin-top: 18px;
+        font-weight: 600;
+    }
+
+    .switch-row.active {
+        display: flex;
+    }
+
+    .toggle {
+        position: relative;
+        width: 50px;
+        height: 26px;
+        border-radius: 13px;
+        background: #c8d0dc;
+        cursor: pointer;
+        transition: background-color .2s ease;
+    }
+
+    .toggle.on {
+        background: var(--primary, #5e72e4);
+    }
+
+    .toggle::before {
+        position: absolute;
+        top: 3px;
+        left: 3px;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: #fff;
+        content: "";
+        transition: transform .2s ease;
+    }
+
+    .toggle.on::before {
+        transform: translateX(24px);
+    }
+</style>
+
+<div class="airpi-fan">
+    <div class="airpi-fan-inner">
+        <h2>内置 PWM 风扇控制面板</h2>
+
+        <div class="fan-actions">
+            <button class="fan-btn" id="btn-stop" onclick="doAction('fanstop', 64, 'btn-stop')">静音</button>
+            <button class="fan-btn" id="btn-low" onclick="doAction('fanst1', 128, 'btn-low')">低速</button>
+            <button class="fan-btn" id="btn-mid" onclick="doAction('fanst2', 192, 'btn-mid')">常规</button>
+            <button class="fan-btn" id="btn-high" onclick="doAction('fanst3', 255, 'btn-high')">最高</button>
+            <button class="fan-btn" id="btn-auto" onclick="doAuto()">智能</button>
+            <button class="fan-btn" id="btn-manual" onclick="doManual()">无极</button>
+        </div>
+
+        <div id="sliderBox" class="slider-box">
+            <input type="range" id="speedSlider" min="0" max="255" oninput="manualSpeed(this.value)" />
+        </div>
+
+        <canvas id="fan" width="180" height="180"></canvas>
+
+        <div class="fan-info" id="speedText">当前 PWM: --</div>
+        <div class="fan-info" id="tempText">当前温度: -- °C</div>
+
+        <div class="progress-wrapper"><div id="energyFill"></div></div>
+
+        <div class="switch-row" id="switchRow">
+            <span>5G 模块</span>
+            <div class="toggle" id="tempToggle" onclick="toggleTempSource()"></div>
+            <span>CPU</span>
+        </div>
+    </div>
+</div>
+
+<script type="text/javascript">
+    var currentSpeed = 0;
+    var lastTemp = 0;
+    var themeColor = "#5e72e4";
+    var fanSource = "温度";
+
+    var canvas = document.getElementById("fan");
+    var ctx = canvas.getContext("2d");
+    var speedText = document.getElementById("speedText");
+    var tempText = document.getElementById("tempText");
+    var fill = document.getElementById("energyFill");
+    var toggle = document.getElementById("tempToggle");
+
+    function updateTheme() {
+        themeColor = getComputedStyle(document.documentElement).getPropertyValue("--primary").trim() || "#5e72e4";
+    }
+
+    function drawBlade(angle) {
+        ctx.save();
+        ctx.translate(90, 90);
+        ctx.rotate(angle);
+        ctx.beginPath();
+        ctx.moveTo(0, -14);
+        ctx.quadraticCurveTo(42, -72, 20, -18);
+        ctx.quadraticCurveTo(12, 4, 0, 14);
+        ctx.quadraticCurveTo(-14, 2, 0, -14);
+        ctx.fill();
+        ctx.restore();
+    }
+
+    function animate(t) {
+        var speed = Math.max(currentSpeed, 1);
+        var angle = (t / 100) * (0.35 + speed / 160);
+
+        ctx.clearRect(0, 0, 180, 180);
+        ctx.fillStyle = themeColor;
+
+        for (var i = 0; i < 3; i++) {
+            drawBlade(angle + i * 2.0944);
+        }
+
+        ctx.beginPath();
+        ctx.arc(90, 90, 13, 0, Math.PI * 2);
+        ctx.fillStyle = "#fff";
+        ctx.fill();
+        ctx.strokeStyle = themeColor;
+        ctx.stroke();
+        requestAnimationFrame(animate);
+    }
+
+    function updateDisplay(temp, speed) {
+        var numericTemp = Number(temp);
+        currentSpeed = parseInt(speed, 10) || 0;
+        speedText.innerText = "当前 PWM: " + currentSpeed;
+        tempText.innerText = fanSource + ": " + temp + " °C";
+
+        if (isNaN(numericTemp)) {
+            numericTemp = 0;
+        }
+
+        var p = Math.min(Math.max(numericTemp / 100, 0), 1);
+        fill.style.width = (p * 100) + "%";
+        fill.style.backgroundColor = numericTemp > 75 ? "#f5365c" : (numericTemp > 55 ? "#fb6340" : "#2dce89");
+    }
+
+    function setActive(id) {
+        var buttons = document.querySelectorAll(".fan-btn");
+        for (var i = 0; i < buttons.length; i++) {
+            buttons[i].classList.remove("active");
+        }
+
+        var active = document.getElementById(id);
+        if (active) {
+            active.classList.add("active");
+        }
+    }
+
+    function showManual(show) {
+        document.getElementById("sliderBox").classList.toggle("active", show);
+    }
+
+    function showTempSwitch(show) {
+        document.getElementById("switchRow").classList.toggle("active", show);
+    }
+
+    function doAction(act, spd, bid) {
+        XHR.get("<%=luci.dispatcher.build_url('admin', 'fancontrol')%>/" + act, {set: "s", p: "1"}, function() {
+            currentSpeed = spd;
+            setActive(bid);
+            showManual(false);
+            showTempSwitch(false);
+        });
+    }
+
+    function doAuto() {
+        XHR.get("<%=luci.dispatcher.build_url('admin', 'fancontrol', 'fanst4')%>", {set: "s", p: "1"}, function() {
+            setActive("btn-auto");
+            showManual(false);
+            showTempSwitch(true);
+        });
+    }
+
+    function doManual() {
+        XHR.get("<%=luci.dispatcher.build_url('admin', 'fancontrol', 'fanswj2')%>", {set: "s", p: "1"}, function(x, rv) {
+            var v = parseInt(rv && rv.result, 10) || 0;
+            document.getElementById("speedSlider").value = v;
+            currentSpeed = v;
+            setActive("btn-manual");
+            showManual(true);
+            showTempSwitch(false);
+        });
+    }
+
+    function manualSpeed(v) {
+        currentSpeed = parseInt(v, 10) || 0;
+        XHR.get("<%=luci.dispatcher.build_url('admin', 'fancontrol', 'fanswj')%>", {set: "s", p: currentSpeed});
+    }
+
+    function toggleTempSource() {
+        var path = toggle.classList.contains("on") ? "fansvm" : "fansvc";
+        XHR.get("<%=luci.dispatcher.build_url('admin', 'fancontrol')%>/" + path, {set: "s", p: "v"}, refresh);
+    }
+
+    function refresh() {
+        XHR.get("<%=luci.dispatcher.build_url('admin', 'fancontrol', 'fanst')%>", {set: "s", p: "1"}, function(x, rv) {
+            if (!rv) {
+                return;
+            }
+
+            var spd = parseInt(rv.fanspd, 10) || 0;
+            var mode = rv.fancts;
+            updateDisplay(lastTemp, spd);
+
+            showManual(mode === "无极");
+            showTempSwitch(mode === "智能");
+
+            if (mode === "智能") {
+                setActive("btn-auto");
+            } else if (mode === "无极") {
+                setActive("btn-manual");
+                document.getElementById("speedSlider").value = spd;
+            } else if (spd <= 64) {
+                setActive("btn-stop");
+            } else if (spd <= 128) {
+                setActive("btn-low");
+            } else if (spd <= 192) {
+                setActive("btn-mid");
+            } else {
+                setActive("btn-high");
+            }
+        });
+
+        XHR.get("<%=luci.dispatcher.build_url('admin', 'fancontrol', 'fansttp')%>", {set: "s", p: "1"}, function(x, rv) {
+            if (!rv) {
+                return;
+            }
+
+            fanSource = rv.fansv || "温度";
+            lastTemp = rv.fansttp || 0;
+            toggle.classList.toggle("on", fanSource !== "5G模块温度");
+            updateDisplay(lastTemp, currentSpeed);
+        });
+    }
+
+    window.onload = function() {
+        updateTheme();
+        refresh();
+        setInterval(refresh, 1200);
+        requestAnimationFrame(animate);
+    };
+</script>
+<%+footer%>

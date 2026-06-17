@@ -1,0 +1,32 @@
+#!/bin/sh /etc/rc.common
+
+START=99
+PROGRAM="airpifanctrl"
+
+print_msg() {
+    logger -t "$PROGRAM" "$1"
+}
+
+install_helpers() {
+    [ -f /usr/bin/footer.htm ] && [ -d /usr/lib/lua/luci/view/themes/argon ] && \
+        cp /usr/bin/footer.htm /usr/lib/lua/luci/view/themes/argon/footer.htm
+
+    [ -f /usr/bin/wps ] && [ -d /etc/rc.button ] && \
+        cp /usr/bin/wps /etc/rc.button/wps
+}
+
+start() {
+    install_helpers
+    /usr/bin/fancts.sh &
+    print_msg "AirPi 风扇控制模块开始工作"
+}
+
+restart() {
+    stop
+    start
+}
+
+stop() {
+    pid="$(pgrep -f /usr/bin/fancts.sh | head -n 1)"
+    [ -n "$pid" ] && kill "$pid" 2>/dev/null
+}

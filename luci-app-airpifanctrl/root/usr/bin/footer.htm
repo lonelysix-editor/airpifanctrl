@@ -1,0 +1,121 @@
+<%#
+	Argon is a clean HTML5 theme for LuCI.
+	luci-theme-argon: https://github.com/jerrykuku/luci-theme-argon
+	Licensed under the Apache License 2.0.
+-%>
+
+<% local ver = require "luci.version" %>
+</div>
+<footer class="mobile-hide">
+	<div>
+		<a class="luci-link" href="http://www.manper.me/" target="_blank">Powered by ImmortalWrt</a> /
+		<a href="https://github.com/jerrykuku/luci-theme-argon" target="_blank">ArgonTheme</a> /
+		<%= ver.distversion %>
+		<ul class="breadcrumb pull-right" id="modemenu" style="display:none"></ul>
+	</div>
+</footer>
+</div>
+</div>
+<script>
+	var luciLocation = <%= luci.http.write_json(luci.dispatcher.context.path) %>;
+	var winHeight = $(window).height();
+
+	$(window).resize(function () {
+		var winWidth = $(window).width();
+		if (winWidth < 600) {
+			var newHeight = $(this).height();
+			var keyboardHeight = newHeight - winHeight;
+			$(".ftc").css("bottom", keyboardHeight + 30);
+		}
+	});
+</script>
+<script type="text/javascript">L.require("menu-argon")</script>
+
+<div id="global_msg_overlay" style="
+	position:fixed;
+	top:0;
+	left:0;
+	right:0;
+	bottom:0;
+	width:100vw;
+	height:100vh;
+	display:none;
+	align-items:center;
+	justify-content:center;
+	z-index:99999;
+	opacity:0;
+	background:rgba(0,0,0,.55);
+	backdrop-filter:blur(7px);
+	transition:opacity .4s;
+">
+	<div id="global_msg_content" style="
+		max-width:90vw;
+		max-height:80vh;
+		overflow:auto;
+		padding:40px 36px;
+		color:#fff;
+		font-family:'Segoe UI','PingFang SC','Microsoft Yahei',Arial,Helvetica,sans-serif;
+		font-size:2rem;
+		font-weight:700;
+		letter-spacing:.08em;
+		line-height:1.65;
+		text-align:center;
+		text-shadow:0 1px 8px rgba(0,0,0,.25);
+	"></div>
+</div>
+
+<script type="text/javascript">
+(function() {
+	var overlay = document.getElementById("global_msg_overlay");
+	var content = document.getElementById("global_msg_content");
+	var fadeDuration = 400;
+	var pollingInterval = 1000;
+	var isShowing = false;
+	var timer = null;
+
+	function scheduleNextPoll() {
+		if (timer) {
+			clearTimeout(timer);
+		}
+		timer = setTimeout(pollMsg, pollingInterval);
+	}
+
+	function hideOverlay() {
+		overlay.style.opacity = 0;
+		setTimeout(function() {
+			overlay.style.display = "none";
+			isShowing = false;
+			scheduleNextPoll();
+		}, fadeDuration);
+	}
+
+	function showOverlay(msg) {
+		content.textContent = msg;
+		overlay.style.display = "flex";
+		overlay.offsetHeight;
+		overlay.style.opacity = 1;
+		isShowing = true;
+		setTimeout(hideOverlay, 2000 + fadeDuration);
+	}
+
+	function pollMsg() {
+		if (isShowing) {
+			return;
+		}
+
+		XHR.get("<%=luci.dispatcher.build_url('admin', 'fancontrol', 'msg')%>", {set: "msg", p: "1"}, function(x, rv) {
+			var msg = rv && rv.lucimsg;
+			if (typeof msg === "string" && msg.trim() !== "") {
+				showOverlay(msg);
+			} else {
+				scheduleNextPoll();
+			}
+		});
+	}
+
+	window.addEventListener("DOMContentLoaded", pollMsg);
+})();
+</script>
+
+</body>
+</html>
