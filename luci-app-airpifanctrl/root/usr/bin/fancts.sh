@@ -50,10 +50,8 @@ esac
 while true; do
     fan_source="$(cat "$TEMP_SOURCE" 2>/dev/null)"
     if [ "$fan_source" = "模块温度" ]; then
-        temp="$(sendat 1 'AT^CHIPTEMP?' | grep 'CHIPTEMP' | sed -n '1p' | cut -d, -f9 | sed '/^$/d')"
-        if [ -n "$temp" ]; then
-            temp=$((temp * 100))
-        else
+        temp="$(at /dev/ttyUSB3 AT+QTEMP 2>/dev/null | awk -F'"' '/^\+QTEMP:/ { value = $4 + 0; if ($4 ~ /^-?[0-9]+$/ && value > 0 && (max == "" || value > max)) max = value } END { if (max != "") print max * 1000 }')"
+        if [ -z "$temp" ]; then
             temp="$(cat /sys/class/thermal/thermal_zone0/temp)"
         fi
     else
@@ -81,5 +79,5 @@ while true; do
     fi
 
     write_pwm "$pwm"
-    sleep 8
+    sleep 5
 done
