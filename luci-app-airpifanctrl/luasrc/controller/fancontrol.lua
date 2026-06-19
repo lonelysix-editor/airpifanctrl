@@ -41,6 +41,19 @@ local function json_response(rv)
     http.write_json(rv)
 end
 
+local function parse_qtemp_temperature(output)
+    local max_temp = nil
+
+    for value in tostring(output or ""):gmatch('%+QTEMP:%s*"[^"]+"%s*,%s*"(-?%d+)"') do
+        local temp = tonumber(value)
+        if temp and temp > 0 and (not max_temp or temp > max_temp) then
+            max_temp = temp
+        end
+    end
+
+    return max_temp
+end
+
 local function stop_fancts()
     local handle = io.popen("pgrep -f fancts.sh")
     local pid = handle and handle:read("*a") or ""
@@ -180,14 +193,13 @@ function action_fansttp()
 
     if config and config:match("模块温度") then
         fansv = "5G模块温度"
-        local sendat_command = io.popen("sendat 1 'AT^CHIPTEMP?' | grep 'CHIPTEMP' | sed -n '1p' | cut -d, -f9 | sed '/^$/d'")
+        local sendat_command = io.popen("at /dev/ttyUSB3 AT+QTEMP 2>/dev/null")
         local temp_output = sendat_command and sendat_command:read("*a") or ""
         if sendat_command then
             sendat_command:close()
         end
 
-        local temp_value = tonumber(temp_output)
-        temperature = temp_value and (temp_value / 10) or "null"
+        temperature = parse_qtemp_temperature(temp_output) or "null"
     else
         fansv = "CPU温度"
         local file = io.open("/sys/class/thermal/thermal_zone0/temp", "r")
